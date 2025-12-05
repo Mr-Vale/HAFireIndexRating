@@ -1,0 +1,333 @@
+# =============================================================================
+# Home Assistant Fire Danger Index Configuration
+# Based on McArthur Forest Fire Danger Index (FFDI) used by CFA Australia
+# =============================================================================
+# 
+# This configuration calculates the Fire Danger Index every 15 minutes using
+# data from an Ecowitt weather station. The index is graphed on a dashboard
+# with 3 days of historical data retained.
+#
+# INSTALLATION:
+# 1. Copy this file to your Home Assistant config directory
+# 2. Add the following to your configuration.yaml:
+#    homeassistant:
+#      packages:
+#        fire_danger_index: !include fire_danger_index.yaml
+# 3. Restart Home Assistant
+# 4. Add the dashboard card from fire_danger_dashboard.yaml to your Lovelace UI
+#
+# ECOWITT SENSOR ENTITY IDs:
+# Update the entity IDs below to match your Ecowitt weather station sensors.
+# Common Ecowitt entity patterns:
+#   - sensor.ecowitt_temperature or sensor.gw1000_outdoor_temperature
+#   - sensor.ecowitt_humidity or sensor.gw1000_humidity  
+#   - sensor.ecowitt_wind_speed or sensor.gw1000_wind_speed
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Input Numbers - User Configurable Settings
+# -----------------------------------------------------------------------------
+input_number:
+  fire_danger_alert_threshold:
+    name: Fire Danger Alert Threshold
+    min: 0
+    max: 150
+    step: 1
+    initial: 50
+    unit_of_measurement: "FDI"
+    icon: mdi:fire-alert
+    mode: slider
+
+  fire_danger_drought_factor:
+    name: Drought Factor
+    min: 1
+    max: 10
+    step: 0.5
+    initial: 5
+    unit_of_measurement: ""
+    icon: mdi:water-percent
+    mode: slider
+
+# -----------------------------------------------------------------------------
+# Input Booleans - Feature Toggles
+# -----------------------------------------------------------------------------
+input_boolean:
+  fire_danger_notifications_enabled:
+    name: Fire Danger Notifications Enabled
+    initial: false
+    icon: mdi:bell-alert
+
+# -----------------------------------------------------------------------------
+# Input Text - Sensor Entity Configuration
+# These allow users to configure which sensors to use without editing YAML
+# -----------------------------------------------------------------------------
+input_text:
+  fire_danger_temperature_sensor:
+    name: Temperature Sensor Entity ID
+    initial: "sensor.ecowitt_temperature"
+    max: 255
+    mode: text
+
+  fire_danger_humidity_sensor:
+    name: Humidity Sensor Entity ID
+    initial: "sensor.ecowitt_humidity"
+    max: 255
+    mode: text
+
+  fire_danger_wind_speed_sensor:
+    name: Wind Speed Sensor Entity ID
+    initial: "sensor.ecowitt_wind_speed"
+    max: 255
+    mode: text
+
+# -----------------------------------------------------------------------------
+# Template Sensors - Fire Danger Index Calculation
+# -----------------------------------------------------------------------------
+# McArthur Forest Fire Danger Index (FFDI) Formula:
+# FFDI = 2 * exp(-0.45 + 0.987*ln(DF) - 0.0345*H + 0.0338*T + 0.0234*U)
+# Where:
+#   DF = Drought Factor (1-10, user configurable)
+#   H = Relative Humidity (%)
+#   T = Temperature (°C)
+#   U = Wind Speed (km/h)
+# -----------------------------------------------------------------------------
+template:
+  - sensor:
+      - name: "Fire Danger Index"
+        unique_id: fire_danger_index_sensor
+        unit_of_measurement: "FDI"
+        state_class: measurement
+        icon: >-
+          {% set fdi = states('sensor.fire_danger_index') | float(0) %}
+          {% if fdi >= 100 %}
+            mdi:fire-alert
+          {% elif fdi >= 75 %}
+            mdi:fire
+          {% elif fdi >= 50 %}
+            mdi:fire-circle
+          {% elif fdi >= 25 %}
+            mdi:alert-circle
+          {% else %}
+            mdi:check-circle
+          {% endif %}
+        state: >-
+          {% set temp_entity = states('input_text.fire_danger_temperature_sensor') %}
+          {% set humidity_entity = states('input_text.fire_danger_humidity_sensor') %}
+          {% set wind_entity = states('input_text.fire_danger_wind_speed_sensor') %}
+          
+          {% set temperature = states(temp_entity) | float(none) %}
+          {% set humidity = states(humidity_entity) | float(none) %}
+          {% set wind_speed = states(wind_entity) | float(none) %}
+          {% set drought_factor = states('input_number.fire_danger_drought_factor') | float(5) %}
+          
+          {% if temperature is none or humidity is none or wind_speed is none %}
+            unavailable
+          {% elif temperature < -50 or temperature > 60 %}
+            unavailable
+          {% elif humidity < 0 or humidity > 100 %}
+            unavailable
+          {% elif wind_speed < 0 %}
+            unavailable
+          {% else %}
+            {% set df_safe = [drought_factor, 0.1] | max %}
+            {% set ln_df = df_safe | log %}
+            {% set exponent = -0.45 + (0.987 * ln_df) - (0.0345 * humidity) + (0.0338 * temperature) + (0.0234 * wind_speed) %}
+            {% set fdi = 2 * (exponent | exp) %}
+            {{ [fdi | round(1), 0] | max }}
+          {% endif %}
+        attributes:
+          temperature: >-
+            {% set temp_entity = states('input_text.fire_danger_temperature_sensor') %}
+            {{ states(temp_entity) | float(none) }}
+          humidity: >-
+            {% set humidity_entity = states('input_text.fire_danger_humidity_sensor') %}
+            {{ states(humidity_entity) | float(none) }}
+          wind_speed: >-
+            {% set wind_entity = states('input_text.fire_danger_wind_speed_sensor') %}
+            {{ states(wind_entity) | float(none) }}
+          drought_factor: "{{ states('input_number.fire_danger_drought_factor') | float(5) }}"
+          danger_rating: >-
+            {% set fdi = states('sensor.fire_danger_index') | float(0) %}
+            {% if fdi >= 100 %}
+              Catastrophic
+            {% elif fdi >= 75 %}
+              Extreme
+            {% elif fdi >= 50 %}
+              Severe
+            {% elif fdi >= 32 %}
+              Very High
+            {% elif fdi >= 25 %}
+              High
+            {% elif fdi >= 12 %}
+              Moderate
+            {% else %}
+              Low-Moderate
+            {% endif %}
+          danger_color: >-
+            {% set fdi = states('sensor.fire_danger_index') | float(0) %}
+            {% if fdi >= 100 %}
+              #CC0000
+            {% elif fdi >= 75 %}
+              #FE0000
+            {% elif fdi >= 50 %}
+              #FF6600
+            {% elif fdi >= 32 %}
+              #FFAA00
+            {% elif fdi >= 25 %}
+              #FFFF00
+            {% elif fdi >= 12 %}
+              #92D050
+            {% else %}
+              #00B050
+            {% endif %}
+          last_updated: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+      - name: "Fire Danger Rating"
+        unique_id: fire_danger_rating_sensor
+        icon: mdi:fire-alert
+        state: >-
+          {% set fdi = states('sensor.fire_danger_index') | float(0) %}
+          {% if fdi >= 100 %}
+            Catastrophic
+          {% elif fdi >= 75 %}
+            Extreme
+          {% elif fdi >= 50 %}
+            Severe
+          {% elif fdi >= 32 %}
+            Very High
+          {% elif fdi >= 25 %}
+            High
+          {% elif fdi >= 12 %}
+            Moderate
+          {% else %}
+            Low-Moderate
+          {% endif %}
+
+# -----------------------------------------------------------------------------
+# Automation - Fire Danger Index Calculation and Notifications
+# -----------------------------------------------------------------------------
+automation:
+  - id: fire_danger_index_update
+    alias: "Fire Danger Index - Update Every 15 Minutes"
+    description: "Calculates the Fire Danger Index every 15 minutes between 1:00 AM and 11:45 PM"
+    mode: single
+    trigger:
+      - platform: time_pattern
+        minutes: "/15"
+    condition:
+      - condition: template
+        value_template: >-
+          {% set current_hour = now().hour %}
+          {% set current_minute = now().minute %}
+          {% set current_minutes = current_hour * 60 + current_minute %}
+          {% set start_minutes = 1 * 60 %}
+          {% set end_minutes = 23 * 60 + 45 %}
+          {{ start_minutes <= current_minutes <= end_minutes }}
+    action:
+      # Force update of the template sensor by updating the drought factor slightly
+      # This triggers a recalculation of the Fire Danger Index
+      - service: homeassistant.update_entity
+        target:
+          entity_id: sensor.fire_danger_index
+      # Log the current value
+      - service: logbook.log
+        data:
+          name: "Fire Danger Index"
+          message: >-
+            Current FDI: {{ states('sensor.fire_danger_index') }} 
+            ({{ state_attr('sensor.fire_danger_index', 'danger_rating') }})
+            | Temp: {{ state_attr('sensor.fire_danger_index', 'temperature') }}°C
+            | Humidity: {{ state_attr('sensor.fire_danger_index', 'humidity') }}%
+            | Wind: {{ state_attr('sensor.fire_danger_index', 'wind_speed') }} km/h
+
+  - id: fire_danger_high_alert
+    alias: "Fire Danger Index - High Alert Notification"
+    description: "Sends a notification when the Fire Danger Index exceeds the configured threshold (DISABLED BY DEFAULT)"
+    mode: single
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.fire_danger_index
+        above: input_number.fire_danger_alert_threshold
+    condition:
+      # Notifications are disabled by default - enable when push notifications are configured
+      - condition: state
+        entity_id: input_boolean.fire_danger_notifications_enabled
+        state: "on"
+    action:
+      # Placeholder for notification service - update when push notifications are configured
+      # Uncomment and modify the service call below when notifications are ready
+      # - service: notify.mobile_app_your_phone
+      #   data:
+      #     title: "🔥 Fire Danger Alert!"
+      #     message: >-
+      #       Fire Danger Index has reached {{ states('sensor.fire_danger_index') }}
+      #       ({{ state_attr('sensor.fire_danger_index', 'danger_rating') }})
+      #       
+      #       Temperature: {{ state_attr('sensor.fire_danger_index', 'temperature') }}°C
+      #       Humidity: {{ state_attr('sensor.fire_danger_index', 'humidity') }}%
+      #       Wind Speed: {{ state_attr('sensor.fire_danger_index', 'wind_speed') }} km/h
+      #     data:
+      #       priority: high
+      #       ttl: 0
+      - service: persistent_notification.create
+        data:
+          title: "🔥 Fire Danger Alert!"
+          message: >-
+            Fire Danger Index has reached {{ states('sensor.fire_danger_index') }}
+            ({{ state_attr('sensor.fire_danger_index', 'danger_rating') }})
+            
+            Temperature: {{ state_attr('sensor.fire_danger_index', 'temperature') }}°C
+            Humidity: {{ state_attr('sensor.fire_danger_index', 'humidity') }}%
+            Wind Speed: {{ state_attr('sensor.fire_danger_index', 'wind_speed') }} km/h
+          notification_id: fire_danger_alert
+
+  - id: fire_danger_daily_reset_log
+    alias: "Fire Danger Index - Daily Log Entry"
+    description: "Creates a daily log entry at the start of each monitoring period"
+    mode: single
+    trigger:
+      - platform: time
+        at: "01:00:00"
+    action:
+      - service: logbook.log
+        data:
+          name: "Fire Danger Index"
+          message: "Starting daily Fire Danger Index monitoring"
+
+# -----------------------------------------------------------------------------
+# Recorder Configuration - 3 Day History Retention
+# -----------------------------------------------------------------------------
+# ⚠️ IMPORTANT: This recorder configuration may override your existing settings!
+# 
+# If you already have a recorder configuration in your configuration.yaml:
+#   1. Do NOT use this section as a package
+#   2. Instead, manually add these entities to your existing recorder config:
+#      - sensor.fire_danger_index
+#      - sensor.fire_danger_rating
+#      - input_number.fire_danger_alert_threshold
+#      - input_number.fire_danger_drought_factor
+#   3. Add entity_globs for your Ecowitt sensors
+#
+# If you don't have an existing recorder configuration, this will work as-is.
+# -----------------------------------------------------------------------------
+recorder:
+  purge_keep_days: 3
+  commit_interval: 30
+  include:
+    entities:
+      - sensor.fire_danger_index
+      - sensor.fire_danger_rating
+      - input_number.fire_danger_alert_threshold
+      - input_number.fire_danger_drought_factor
+    entity_globs:
+      - sensor.ecowitt_*
+      - sensor.gw1000_*
+
+# -----------------------------------------------------------------------------
+# Logger Configuration - Debug Logging (Optional)
+# -----------------------------------------------------------------------------
+# Uncomment below if you need to debug the fire danger index calculations
+# logger:
+#   default: warning
+#   logs:
+#     homeassistant.components.template: debug

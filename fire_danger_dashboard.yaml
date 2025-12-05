@@ -1,0 +1,320 @@
+# =============================================================================
+# Fire Danger Index Dashboard Configuration
+# =============================================================================
+# 
+# This file contains Lovelace dashboard cards for displaying the Fire Danger
+# Index with historical graphs and controls.
+#
+# INSTALLATION OPTIONS:
+#
+# Option 1: Add to existing dashboard via UI
+#   1. Go to your dashboard in edit mode
+#   2. Click "Add Card"
+#   3. Choose "Manual" or "YAML"
+#   4. Copy the relevant card configuration below
+#
+# Option 2: Create a dedicated dashboard view
+#   1. Copy the entire "views" section to your ui-lovelace.yaml
+#   2. Or use the UI to create a new view and add cards manually
+#
+# Option 3: Use as a separate Lovelace file
+#   1. Add to your configuration.yaml:
+#      lovelace:
+#        mode: yaml
+#        resources: []
+#        dashboards:
+#          fire-danger:
+#            mode: yaml
+#            title: Fire Danger
+#            icon: mdi:fire-alert
+#            show_in_sidebar: true
+#            filename: fire_danger_dashboard.yaml
+#
+# =============================================================================
+
+title: Fire Danger Index
+views:
+  - title: Fire Danger Index
+    path: fire-danger
+    icon: mdi:fire-alert
+    badges: []
+    cards:
+      # -----------------------------------------------------------------
+      # Current Fire Danger Index Display
+      # -----------------------------------------------------------------
+      - type: vertical-stack
+        cards:
+          # Main FDI Gauge
+          - type: gauge
+            entity: sensor.fire_danger_index
+            name: Current Fire Danger Index
+            unit: FDI
+            min: 0
+            max: 150
+            severity:
+              green: 0
+              yellow: 25
+              red: 75
+            needle: true
+
+          # Danger Rating Card
+          - type: entity
+            entity: sensor.fire_danger_rating
+            name: Fire Danger Rating
+            icon: mdi:fire-alert
+
+      # -----------------------------------------------------------------
+      # Today's Fire Danger Index Graph
+      # Shows data from 1:00 AM to current time
+      # -----------------------------------------------------------------
+      - type: history-graph
+        entities:
+          - entity: sensor.fire_danger_index
+            name: Fire Danger Index
+        hours_to_show: 24
+        title: Today's Fire Danger Index
+        refresh_interval: 0
+
+      # -----------------------------------------------------------------
+      # 3-Day Historical Graph
+      # Shows complete history for the past 3 days
+      # -----------------------------------------------------------------
+      - type: history-graph
+        entities:
+          - entity: sensor.fire_danger_index
+            name: Fire Danger Index
+        hours_to_show: 72
+        title: Fire Danger Index - Last 3 Days
+        refresh_interval: 0
+
+      # -----------------------------------------------------------------
+      # Current Weather Conditions
+      # Uses standard markdown card - works without custom cards
+      # -----------------------------------------------------------------
+      - type: markdown
+        title: Current Weather Conditions
+        content: |
+          | Measurement | Value |
+          |-------------|-------|
+          | 🌡️ Temperature | {{ state_attr('sensor.fire_danger_index', 'temperature') }}°C |
+          | 💧 Humidity | {{ state_attr('sensor.fire_danger_index', 'humidity') }}% |
+          | 💨 Wind Speed | {{ state_attr('sensor.fire_danger_index', 'wind_speed') }} km/h |
+          | 🔥 Drought Factor | {{ state_attr('sensor.fire_danger_index', 'drought_factor') }} |
+          | ⏰ Last Updated | {{ state_attr('sensor.fire_danger_index', 'last_updated') }} |
+
+      # -----------------------------------------------------------------
+      # Alternative Weather Conditions (requires HACS custom card)
+      # Use this if you have custom:template-entity-row from HACS installed
+      # Comment out the markdown card above and uncomment this section
+      # -----------------------------------------------------------------
+      # - type: entities
+      #   title: Current Weather Conditions
+      #   show_header_toggle: false
+      #   entities:
+      #     - type: custom:template-entity-row
+      #       name: Temperature
+      #       state: "{{ state_attr('sensor.fire_danger_index', 'temperature') }}°C"
+      #       icon: mdi:thermometer
+      #     - type: custom:template-entity-row
+      #       name: Humidity
+      #       state: "{{ state_attr('sensor.fire_danger_index', 'humidity') }}%"
+      #       icon: mdi:water-percent
+      #     - type: custom:template-entity-row
+      #       name: Wind Speed
+      #       state: "{{ state_attr('sensor.fire_danger_index', 'wind_speed') }} km/h"
+      #       icon: mdi:weather-windy
+      #     - type: custom:template-entity-row
+      #       name: Last Updated
+      #       state: "{{ state_attr('sensor.fire_danger_index', 'last_updated') }}"
+      #       icon: mdi:clock-outline
+
+      # -----------------------------------------------------------------
+      # Settings and Controls
+      # -----------------------------------------------------------------
+      - type: entities
+        title: Fire Danger Settings
+        show_header_toggle: false
+        entities:
+          - entity: input_number.fire_danger_alert_threshold
+            name: Alert Threshold
+          - entity: input_number.fire_danger_drought_factor
+            name: Drought Factor
+          - type: divider
+          - entity: input_boolean.fire_danger_notifications_enabled
+            name: Enable Notifications
+            secondary_info: "Push notifications not yet configured"
+
+      # -----------------------------------------------------------------
+      # Sensor Configuration
+      # -----------------------------------------------------------------
+      - type: entities
+        title: Sensor Configuration
+        show_header_toggle: false
+        entities:
+          - entity: input_text.fire_danger_temperature_sensor
+            name: Temperature Sensor
+          - entity: input_text.fire_danger_humidity_sensor
+            name: Humidity Sensor
+          - entity: input_text.fire_danger_wind_speed_sensor
+            name: Wind Speed Sensor
+
+      # -----------------------------------------------------------------
+      # Fire Danger Level Reference Card
+      # -----------------------------------------------------------------
+      - type: markdown
+        title: Fire Danger Rating Guide
+        content: |
+          ### Fire Danger Index Levels
+          
+          | FDI Range | Rating | Color |
+          |-----------|--------|-------|
+          | 0-11 | Low-Moderate | 🟢 Green |
+          | 12-24 | Moderate | 🟢 Green |
+          | 25-31 | High | 🟡 Yellow |
+          | 32-49 | Very High | 🟠 Orange |
+          | 50-74 | Severe | 🟠 Orange |
+          | 75-99 | Extreme | 🔴 Red |
+          | 100+ | Catastrophic | ⚫ Black/Red |
+          
+          ---
+          
+          #### About the Fire Danger Index
+          
+          The **Forest Fire Danger Index (FFDI)** is based on the McArthur 
+          Mark 5 system used by the CFA and fire authorities across Australia.
+          
+          The index combines:
+          - **Temperature** - Higher temperatures dry out vegetation
+          - **Humidity** - Lower humidity increases fire risk
+          - **Wind Speed** - Wind fans flames and spreads fire
+          - **Drought Factor** - Measures soil and vegetation dryness
+
+  # =========================================================================
+  # Historical Data View - Separate tab for reviewing past data
+  # =========================================================================
+  - title: Fire History
+    path: fire-history
+    icon: mdi:history
+    badges: []
+    cards:
+      # -----------------------------------------------------------------
+      # Day 1 (Today) Graph
+      # -----------------------------------------------------------------
+      - type: history-graph
+        entities:
+          - entity: sensor.fire_danger_index
+            name: Fire Danger Index
+        hours_to_show: 24
+        title: Today
+        refresh_interval: 0
+
+      # -----------------------------------------------------------------
+      # Day 2 (Yesterday) Graph - Using statistics-graph for better view
+      # -----------------------------------------------------------------
+      - type: statistics-graph
+        entities:
+          - entity: sensor.fire_danger_index
+            name: Fire Danger Index
+        days_to_show: 3
+        stat_types:
+          - mean
+          - min
+          - max
+        title: 3-Day Statistics
+        period: hour
+
+      # -----------------------------------------------------------------
+      # Full 3-Day Timeline
+      # -----------------------------------------------------------------
+      - type: history-graph
+        entities:
+          - entity: sensor.fire_danger_index
+            name: FDI
+          - entity: sensor.fire_danger_rating
+            name: Rating
+        hours_to_show: 72
+        title: Complete 3-Day History
+        refresh_interval: 0
+
+      # -----------------------------------------------------------------
+      # Weather Correlation Graph
+      # Shows FDI alongside weather inputs for analysis
+      # -----------------------------------------------------------------
+      - type: markdown
+        title: Historical Analysis
+        content: |
+          ### Reviewing Historical Data
+          
+          The graphs above show the Fire Danger Index over the past 3 days.
+          
+          **Tips for analysis:**
+          - Peak fire danger typically occurs in mid-afternoon (2-5 PM)
+          - Compare with temperature and humidity trends
+          - Use the drought factor to account for seasonal dryness
+          
+          **Data Retention:**
+          - Historical data is retained for 3 days
+          - Data older than 3 days is automatically purged
+          - The monitoring period runs from 1:00 AM to 11:45 PM daily
+
+# =============================================================================
+# Alternative Card Configurations
+# =============================================================================
+# Below are alternative card configurations you can use depending on your
+# installed custom cards or preferences.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# ApexCharts Card Configuration (requires apexcharts-card from HACS)
+# This provides more advanced graphing capabilities
+# -----------------------------------------------------------------------------
+# - type: custom:apexcharts-card
+#   graph_span: 24h
+#   header:
+#     show: true
+#     title: Fire Danger Index
+#     show_states: true
+#     colorize_states: true
+#   series:
+#     - entity: sensor.fire_danger_index
+#       name: FDI
+#       stroke_width: 2
+#       color: orange
+#       show:
+#         legend_value: false
+#   apex_config:
+#     chart:
+#       height: 300
+#     xaxis:
+#       type: datetime
+#       labels:
+#         datetimeFormatter:
+#           hour: HH:mm
+
+# -----------------------------------------------------------------------------
+# Mini Graph Card Configuration (requires mini-graph-card from HACS)
+# A compact graph option for smaller displays
+# -----------------------------------------------------------------------------
+# - type: custom:mini-graph-card
+#   entities:
+#     - entity: sensor.fire_danger_index
+#       name: Fire Danger Index
+#   hours_to_show: 24
+#   points_per_hour: 4
+#   line_width: 2
+#   smoothing: true
+#   show:
+#     extrema: true
+#     average: true
+#     labels: true
+#   color_thresholds:
+#     - value: 0
+#       color: "#00B050"
+#     - value: 25
+#       color: "#FFFF00"
+#     - value: 50
+#       color: "#FF6600"
+#     - value: 75
+#       color: "#FE0000"
+#     - value: 100
+#       color: "#CC0000"
