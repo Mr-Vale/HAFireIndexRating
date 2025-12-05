@@ -130,9 +130,9 @@ template:
             unavailable
           {% else %}
             {% set df_safe = [drought_factor, 0.1] | max %}
-            {% set ln_df = (df_safe | log(e)) %}
+            {% set ln_df = df_safe | log %}
             {% set exponent = -0.45 + (0.987 * ln_df) - (0.0345 * humidity) + (0.0338 * temperature) + (0.0234 * wind_speed) %}
-            {% set fdi = 2 * (e ** exponent) %}
+            {% set fdi = 2 * (exponent | exp) %}
             {{ [fdi | round(1), 0] | max }}
           {% endif %}
         attributes:
@@ -217,10 +217,12 @@ automation:
     condition:
       - condition: template
         value_template: >-
-          {% set current_time = now().strftime('%H:%M') %}
-          {% set start_time = '01:00' %}
-          {% set end_time = '23:45' %}
-          {{ start_time <= current_time <= end_time }}
+          {% set current_hour = now().hour %}
+          {% set current_minute = now().minute %}
+          {% set current_minutes = current_hour * 60 + current_minute %}
+          {% set start_minutes = 1 * 60 %}
+          {% set end_minutes = 23 * 60 + 45 %}
+          {{ start_minutes <= current_minutes <= end_minutes }}
     action:
       # Force update of the template sensor by updating the drought factor slightly
       # This triggers a recalculation of the Fire Danger Index
@@ -295,9 +297,18 @@ automation:
 # -----------------------------------------------------------------------------
 # Recorder Configuration - 3 Day History Retention
 # -----------------------------------------------------------------------------
-# Note: This configuration needs to be merged with your existing recorder config
-# If you already have a recorder configuration, add the entities listed below
-# to your existing include filter.
+# ⚠️ IMPORTANT: This recorder configuration may override your existing settings!
+# 
+# If you already have a recorder configuration in your configuration.yaml:
+#   1. Do NOT use this section as a package
+#   2. Instead, manually add these entities to your existing recorder config:
+#      - sensor.fire_danger_index
+#      - sensor.fire_danger_rating
+#      - input_number.fire_danger_alert_threshold
+#      - input_number.fire_danger_drought_factor
+#   3. Add entity_globs for your Ecowitt sensors
+#
+# If you don't have an existing recorder configuration, this will work as-is.
 # -----------------------------------------------------------------------------
 recorder:
   purge_keep_days: 3

@@ -89,34 +89,10 @@ views:
 
       # -----------------------------------------------------------------
       # Current Weather Conditions
-      # -----------------------------------------------------------------
-      - type: entities
-        title: Current Weather Conditions
-        show_header_toggle: false
-        entities:
-          - type: custom:template-entity-row
-            name: Temperature
-            state: "{{ state_attr('sensor.fire_danger_index', 'temperature') }}°C"
-            icon: mdi:thermometer
-          - type: custom:template-entity-row
-            name: Humidity
-            state: "{{ state_attr('sensor.fire_danger_index', 'humidity') }}%"
-            icon: mdi:water-percent
-          - type: custom:template-entity-row
-            name: Wind Speed
-            state: "{{ state_attr('sensor.fire_danger_index', 'wind_speed') }} km/h"
-            icon: mdi:weather-windy
-          - type: custom:template-entity-row
-            name: Last Updated
-            state: "{{ state_attr('sensor.fire_danger_index', 'last_updated') }}"
-            icon: mdi:clock-outline
-
-      # -----------------------------------------------------------------
-      # Alternative Weather Conditions (without custom card)
-      # Use this if you don't have custom:template-entity-row installed
+      # Uses standard markdown card - works without custom cards
       # -----------------------------------------------------------------
       - type: markdown
-        title: Weather Conditions
+        title: Current Weather Conditions
         content: |
           | Measurement | Value |
           |-------------|-------|
@@ -125,6 +101,32 @@ views:
           | 💨 Wind Speed | {{ state_attr('sensor.fire_danger_index', 'wind_speed') }} km/h |
           | 🔥 Drought Factor | {{ state_attr('sensor.fire_danger_index', 'drought_factor') }} |
           | ⏰ Last Updated | {{ state_attr('sensor.fire_danger_index', 'last_updated') }} |
+
+      # -----------------------------------------------------------------
+      # Alternative Weather Conditions (requires HACS custom card)
+      # Use this if you have custom:template-entity-row from HACS installed
+      # Comment out the markdown card above and uncomment this section
+      # -----------------------------------------------------------------
+      # - type: entities
+      #   title: Current Weather Conditions
+      #   show_header_toggle: false
+      #   entities:
+      #     - type: custom:template-entity-row
+      #       name: Temperature
+      #       state: "{{ state_attr('sensor.fire_danger_index', 'temperature') }}°C"
+      #       icon: mdi:thermometer
+      #     - type: custom:template-entity-row
+      #       name: Humidity
+      #       state: "{{ state_attr('sensor.fire_danger_index', 'humidity') }}%"
+      #       icon: mdi:water-percent
+      #     - type: custom:template-entity-row
+      #       name: Wind Speed
+      #       state: "{{ state_attr('sensor.fire_danger_index', 'wind_speed') }} km/h"
+      #       icon: mdi:weather-windy
+      #     - type: custom:template-entity-row
+      #       name: Last Updated
+      #       state: "{{ state_attr('sensor.fire_danger_index', 'last_updated') }}"
+      #       icon: mdi:clock-outline
 
       # -----------------------------------------------------------------
       # Settings and Controls
